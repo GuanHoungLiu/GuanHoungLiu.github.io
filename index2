@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>起床倒數</title>
+<style>
+  :root {
+    --night: #1B2140;
+    --dusk: #3D4573;
+    --peach: #E8A87C;
+    --cream: #F5D3B3;
+    --coral: #FF8C61;
+    --paper: #FFF8F0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    font-family: -apple-system, "PingFang TC", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(180deg, var(--night) 0%, var(--dusk) 42%, var(--peach) 78%, var(--cream) 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: var(--paper);
+    overflow-x: hidden;
+  }
+
+  .scene {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .sun {
+    position: absolute;
+    left: 50%;
+    bottom: -60px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #FFF3E0, var(--coral) 70%);
+    transform: translateX(-50%);
+    filter: blur(0.5px);
+    opacity: 0.9;
+    z-index: 0;
+    transition: bottom 1s ease;
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+
+  .eyebrow {
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: rgba(255, 248, 240, 0.75);
+    margin-bottom: 6px;
+  }
+
+  .countdown {
+    font-family: Georgia, "Noto Serif TC", serif;
+    font-weight: 500;
+    font-size: clamp(48px, 13vw, 76px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin: 4px 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .countdown .unit {
+    font-size: 0.34em;
+    font-weight: 400;
+    margin: 0 2px;
+    opacity: 0.85;
+  }
+
+  .target-line {
+    font-size: 15px;
+    color: rgba(255, 248, 240, 0.8);
+    margin-bottom: 36px;
+  }
+
+  .target-line strong {
+    font-weight: 600;
+    color: var(--paper);
+  }
+
+  .setter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(255, 248, 240, 0.12);
+    border: 1px solid rgba(255, 248, 240, 0.25);
+    backdrop-filter: blur(6px);
+    border-radius: 14px;
+    padding: 14px 18px;
+  }
+
+  .setter label {
+    font-size: 14px;
+    color: rgba(255, 248, 240, 0.85);
+    white-space: nowrap;
+  }
+
+  input[type="time"] {
+    font-family: -apple-system, "PingFang TC", sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    color: var(--paper);
+    outline: none;
+    color-scheme: dark;
+  }
+
+  .status {
+    margin-top: 16px;
+    font-size: 13px;
+    color: rgba(255, 248, 240, 0.65);
+    min-height: 18px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sun { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <div class="sun" id="sun"></div>
+  <div class="card">
+    <div class="eyebrow">距離起床還有</div>
+    <div class="countdown" id="countdown">--<span class="unit">時</span>--<span class="unit">分</span>--<span class="unit">秒</span></div>
+    <div class="target-line" id="targetLine">請先設定起床時間</div>
+
+    <div class="setter">
+      <label for="wakeTime">起床時間</label>
+      <input type="time" id="wakeTime">
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'wakeup-countdown:time';
+  let wakeTarget = null; // Date object
+  const countdownEl = document.getElementById('countdown');
+  const targetLineEl = document.getElementById('targetLine');
+  const statusEl = document.getElementById('status');
+  const sunEl = document.getElementById('sun');
+  const input = document.getElementById('wakeTime');
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function computeTarget(hh, mm) {
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+    if (target.getTime() <= now.getTime()) {
+      target.setDate(target.getDate() + 1);
+    }
+    return target;
+  }
+
+  function formatTargetLine(target) {
+    const now = new Date();
+    const isTomorrow = target.getDate() !== now.getDate();
+    const dayLabel = isTomorrow ? '明天' : '今天';
+    return `${dayLabel} <strong>${pad(target.getHours())}:${pad(target.getMinutes())}</strong> 起床`;
+  }
+
+  function tick() {
+    if (!wakeTarget) return;
+
+    const now = new Date();
+    let diff = wakeTarget.getTime() - now.getTime();
+
+    if (diff <= 0) {
+      // Time's up — recompute for the next day automatically
+      const [hh, mm] = input.value.split(':').map(Number);
+      wakeTarget = computeTarget(hh, mm);
+      targetLineEl.innerHTML = formatTargetLine(wakeTarget);
+      statusEl.textContent = '該起床囉！已自動設定為下一次起床時間';
+      diff = wakeTarget.getTime() - now.getTime();
+    }
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    countdownEl.innerHTML =
+      `${pad(hours)}<span class="unit">時</span>${pad(minutes)}<span class="unit">分</span>${pad(seconds)}<span class="unit">秒</span>`;
+
+    // Move the "sun" up as bedtime-to-wake progresses, purely decorative
+    const progress = Math.max(0, Math.min(1, 1 - diff / (12 * 3600 * 1000)));
+    sunEl.style.bottom = `${-60 + progress * 260}px`;
+  }
+
+  // Some sandboxed preview environments (e.g. iOS Quick Look) block Storage
+  // entirely — even referencing `localStorage` can throw. Guard every access.
+  function storageAvailable() {
+    try {
+      if (typeof localStorage === 'undefined' || localStorage === null) return false;
+      const testKey = '__wakeup_test__';
+      localStorage.setItem(testKey, '1');
+      localStorage.removeItem(testKey);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  const hasStorage = storageAvailable();
+
+  function saveToStorage(value) {
+    if (!hasStorage) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, value);
+    } catch (e) {
+      // Silently ignore — countdown still works, just won't persist
+    }
+  }
+
+  function loadFromStorage() {
+    if (!hasStorage) return null;
+    try {
+      return localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  input.addEventListener('change', () => {
+    if (!input.value) return;
+    const [hh, mm] = input.value.split(':').map(Number);
+    wakeTarget = computeTarget(hh, mm);
+    targetLineEl.innerHTML = formatTargetLine(wakeTarget);
+    statusEl.textContent = '';
+    saveToStorage(input.value);
+    tick();
+  });
+
+  // Initialize — wrapped so nothing here can halt the whole page
+  try {
+    const saved = loadFromStorage();
+    input.value = saved || '07:00';
+    input.dispatchEvent(new Event('change'));
+    if (saved) {
+      statusEl.textContent = '已載入上次設定的起床時間';
+    } else if (!hasStorage) {
+      statusEl.textContent = '此預覽環境不支援儲存，設定不會保留';
+    }
+  } catch (e) {
+    input.value = '07:00';
+    input.dispatchEvent(new Event('change'));
+  }
+
+  setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
